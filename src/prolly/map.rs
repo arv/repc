@@ -1,7 +1,6 @@
 use crate::dag;
 use crate::dag::chunk::Chunk;
 use crate::dag::store::Store;
-use flatbuffers;
 use log::warn;
 use std::collections::BTreeMap;
 use std::collections::btree_map::Iter as BTreeMapIter;
@@ -18,14 +17,17 @@ impl From<dag::Error> for Error {
     }
 }
 
+#[allow(dead_code)]
 type Result<T> = std::result::Result<T, Error>;
 
+#[allow(dead_code)]
 pub struct Map {
     store: Store,
     base: Option<Chunk>,
     pending: BTreeMap<Vec<u8>, Option<Vec<u8>>>,
 }
 
+#[allow(dead_code)]
 impl Map {
     pub async fn new(store: Store) -> Map {
         Map{
@@ -45,7 +47,7 @@ impl Map {
 
     fn iter<'a>(&'a mut self) -> impl Iterator<Item=Entry> {
         Iter{
-            base: self.base.and_then(|chunk| {
+            base: self.base.as_ref().and_then(|chunk| {
                 leaf::get_root_as_leaf(chunk.data()).entries()
             }).and_then(|entries| {
                 Some(entries.iter().peekable())
@@ -61,43 +63,43 @@ pub struct Iter<'a, BaseIter: Iterator<Item=leaf::LeafEntry<'a>>> {
 }
 
 impl<'a, BaseIter: Iterator<Item=leaf::LeafEntry<'a>>> Iter<'a, BaseIter> {
-    fn nextBase(&mut self) -> Option<(&[u8], Option<&[u8]>)> {
-        self.base.and_then(|baseIter| baseIter.next()).and_then(|baseEntry| {
-          let k =   baseEntry.key();
-          let v = baseEntry.val();
+    fn next_base(&mut self) -> Option<(&'a [u8], Option<&'a [u8]>)> {
+        self.base.as_mut().and_then(|base_iter| base_iter.next()).and_then(|base_entry| {
+          let k =   base_entry.key();
+          let v = base_entry.val();
 
           if k.is_none() || v.is_none() {
-              warn!("Corrupt db entry: {:?}", baseEntry);
-              return self.nextBase();
+              warn!("Corrupt db entry: {:?}", base_entry);
+              return self.next_base();
           }
 
           Some((k.unwrap(), Some(v.unwrap())))
         })
     }
 
-    fn nextPending(&mut self) -> Option<(&[u8], Option<&[u8]>)> {
-        self.pending.next().and_then(|(nextKey, nextVal)| {
-            Some((nextKey.as_slice(), nextVal.as_ref().and_then(|nv| Some(nv.as_slice()))))
+    fn next_pending(&mut self) -> Option<(&'a [u8], Option<&'a[u8]>)> {
+        self.pending.next().and_then(|(next_key, next_val)| {
+            Some((next_key.as_slice(), next_val.as_ref().and_then(|nv| Some(nv.as_slice()))))
         })
     }
 
-    fn nextInternal(&mut self) -> Option<(&[u8], Option<&[u8]>)> {
-        let baseKey = self.base.and_then(|i| i.peek()).and_then(|baseEntry| baseEntry.key());
-        let pendingKey = self.pending.peek().and_then(|pendingEntry| Some((*pendingEntry).0.as_slice()));
+    fn next_internal(&mut self) -> Option<(&'a [u8], Option<&'a [u8]>)> {
+        let base_key = self.base.as_mut().and_then(|i| i.peek()).and_then(|base_entry| base_entry.key());
+        let pending_key = self.pending.peek().and_then(|pending_entry| Some((*pending_entry).0.as_slice()));
 
-        match pendingKey {
-            None => self.nextBase(),
-            Some(pendingKey) => {
-                match baseKey {
-                    None => self.nextPending(),
-                    Some(baseKey) => {
-                        if pendingKey < baseKey {
-                            self.nextPending()
-                        } else if baseKey < pendingKey {
-                            self.nextBase()
+        match pending_key {
+            None => self.next_base(),
+            Some(pending_key) => {
+                match base_key {
+                    None => self.next_pending(),
+                    Some(base_key) => {
+                        if pending_key < base_key {
+                            self.next_pending()
+                        } else if base_key < pending_key {
+                            self.next_base()
                         } else {
-                            self.nextPending();
-                            self.nextBase()
+                            self.next_pending();
+                            self.next_base()
                         }
                     }
                 }
@@ -111,23 +113,11 @@ impl<'a, BaseIter: Iterator<Item=leaf::LeafEntry<'a>>> Iterator for Iter<'a, Bas
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            let foo = self.nextInternal();
-            if foo.is_none() {
-                return None
-            }
-            if foo.unwrap().1.is_some() {
-                return Some(Self::Item{
-                    key: foo.unwrap().0,
-                    val: foo.unwrap().1.unwrap(),
-                })
-            }
-            /*
-            match foo {
+            match self.next_internal() {
                 None => return None,
                 Some((key, Some(val))) => return Some(Self::Item{key, val}),
-                Some((key, None)) => (),
+                Some((_, None)) => (),
             }
-            */
         }
     }
 }
