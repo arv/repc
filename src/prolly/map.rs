@@ -22,6 +22,15 @@ impl Map {
         }
     }
 
+    // TODO: improve has and get to not scan entire base, but use binary search.
+    pub fn has(&self, key: &[u8]) -> bool {
+        self.iter().any(|e| e.key == key)
+    }
+
+    pub fn get(&self, key: &[u8]) -> Option<Entry> {
+        self.iter().find(|e| e.key == key)
+    }
+
     pub fn put(&mut self, key: Vec<u8>, val: Vec<u8>) {
         self.pending.insert(key, Some(val));
     }
@@ -30,7 +39,7 @@ impl Map {
         self.pending.insert(key, None);
     }
 
-    pub fn iter<'a>(&'a mut self) -> impl Iterator<Item=Entry> {
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item=Entry> {
         Iter{
             base: Leaf::iter(self.base.as_ref()).peekable(),
             pending: self.pending.iter().peekable(),
