@@ -1,22 +1,22 @@
-use crate::dag::store::Store;
+use crate::dag::write::Write;
 use std::collections::BTreeMap;
 use std::collections::btree_map::Iter as BTreeMapIter;
 use std::iter::{Iterator, Peekable};
-use super::Entry;
+use super::{Entry, Result};
 use super::leaf::Leaf;
+
+type Hash = String;
 
 #[allow(dead_code)]
 pub struct Map {
-    store: Store,
     base: Option<Leaf>,
     pending: BTreeMap<Vec<u8>, Option<Vec<u8>>>,
 }
 
 #[allow(dead_code)]
 impl Map {
-    pub async fn new(store: Store) -> Map {
+    pub async fn new() -> Map {
         Map{
-            store,
             base: None,
             pending: BTreeMap::new(),
         }
@@ -37,11 +37,14 @@ impl Map {
         }
     }
 
-    /*
-    pub fn flush(&mut self) -> Result<()> {
-
+    pub async fn flush<'a>(&mut self, write: &mut Write<'a>) -> Result<Hash> {
+        // TODO: Consider locking during this
+        let new_base = Leaf::new(self.iter());
+        write.put_chunk(new_base.chunk()).await?;
+        self.base = Some(new_base);
+        self.pending.clear();
+        Ok(self.base.as_ref().unwrap().chunk().hash().into())
     }
-    */
 }
 
 pub struct Iter<'a, LeafIter: Iterator<Item = Entry<'a>>> {

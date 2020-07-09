@@ -12,6 +12,10 @@ pub struct Leaf {
 
 #[allow(dead_code)]
 impl Leaf {
+    pub fn chunk(&self) -> &Chunk {
+        &self.chunk
+    }
+
     pub fn new<'a>(entries: impl Iterator<Item = Entry<'a>>) -> Leaf {
         let mut builder = FlatBufferBuilder::default();
         let entries = entries.map(|e| {
