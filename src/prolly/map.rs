@@ -1,23 +1,9 @@
-use crate::dag;
 use crate::dag::store::Store;
 use std::collections::BTreeMap;
 use std::collections::btree_map::Iter as BTreeMapIter;
 use std::iter::{Iterator, Peekable};
 use super::Entry;
 use super::leaf::Leaf;
-
-pub enum Error {
-    Storage(dag::Error),
-}
-
-impl From<dag::Error> for Error {
-    fn from(err: dag::Error) -> Error {
-        Error::Storage(err)
-    }
-}
-
-#[allow(dead_code)]
-type Result<T> = std::result::Result<T, Error>;
 
 #[allow(dead_code)]
 pub struct Map {
@@ -50,6 +36,12 @@ impl Map {
             pending: self.pending.iter().peekable(),
         }
     }
+
+    /*
+    pub fn flush(&mut self) -> Result<()> {
+
+    }
+    */
 }
 
 pub struct Iter<'a, LeafIter: Iterator<Item = Entry<'a>>> {

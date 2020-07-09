@@ -1,4 +1,5 @@
 use crate::dag::chunk::Chunk;
+use flatbuffers::FlatBufferBuilder;
 use super::Entry;
 use super::leaf_generated::leaf;
 use log::warn;
@@ -11,6 +12,27 @@ pub struct Leaf {
 
 #[allow(dead_code)]
 impl Leaf {
+    pub fn new<'a>(entries: impl Iterator<Item = Entry<'a>>) -> Leaf {
+        let mut builder = FlatBufferBuilder::default();
+        let entries = entries.map(|e| {
+            let builder = &mut builder;
+            let args = &leaf::LeafEntryArgs{
+                key: Some(builder.create_vector(e.key)),
+                val: Some(builder.create_vector(e.val)),
+            };
+            leaf::LeafEntry::create(builder, args)
+        }).collect::<Vec<flatbuffers::WIPOffset<leaf::LeafEntry>>>();
+        let entries = builder.create_vector(&entries);
+        let root = leaf::Leaf::create(&mut builder, &leaf::LeafArgs{
+            entries: Some(entries),
+        });
+        builder.finish(root, None);
+
+        Leaf{
+            chunk: Chunk::new("foo".into(), builder.collapse(), &vec![]),
+        }
+    }
+
     pub fn iter<'a>(s: Option<&'a Self>) -> impl Iterator<Item = Entry<'a>> {
         let root = s.map(|leaf| leaf::get_root_as_leaf(leaf.chunk.data()));
         LeafIter{

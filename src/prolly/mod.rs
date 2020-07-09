@@ -5,6 +5,21 @@ mod leaf;
 mod leaf_generated;
 pub mod map;
 
+use crate::dag;
+
+pub enum Error {
+    Storage(dag::Error),
+}
+
+impl From<dag::Error> for Error {
+    fn from(err: dag::Error) -> Error {
+        Error::Storage(err)
+    }
+}
+
+#[allow(dead_code)]
+type Result<T> = std::result::Result<T, Error>;
+
 #[allow(dead_code)]
 pub struct Entry<'a> {
     pub key: &'a [u8],
