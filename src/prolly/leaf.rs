@@ -29,7 +29,7 @@ impl Leaf {
         builder.finish(root, None);
 
         Leaf{
-            chunk: Chunk::new("foo".into(), builder.collapse(), &vec![]),
+            chunk: Chunk::new( builder.collapse(), &vec![]),
         }
     }
 

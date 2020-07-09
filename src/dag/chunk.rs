@@ -1,3 +1,4 @@
+use crate::hash::Hash;
 use super::meta_generated::meta;
 use flatbuffers;
 use flatbuffers::FlatBufferBuilder;
@@ -13,9 +14,10 @@ pub struct Chunk {
 }
 
 impl Chunk {
-    pub fn new(hash: String, data: (Vec<u8>, usize), refs: &[&str]) -> Chunk {
+    pub fn new(data: (Vec<u8>, usize), refs: &[&str]) -> Chunk {
+        let s: &[u8] = &data.0;
         Chunk {
-            hash,
+            hash: Hash::of(&s[data.1..]).to_string(),
             data,
             meta: Chunk::create_meta(refs),
         }
@@ -91,7 +93,7 @@ mod tests {
     #[test]
     fn round_trip() {
         fn test(hash: String, data: Vec<u8>, refs: &[&str]) {
-            let c = Chunk::new(hash.clone(), (data.clone(), 0), refs.clone());
+            let c = Chunk::new( (data.clone(), 0), refs.clone());
             assert_eq!(&hash, c.hash());
             assert_eq!(data, c.data());
             if refs.is_empty() {
@@ -105,8 +107,8 @@ mod tests {
             assert_eq!(c, c2);
         }
 
-        test("".into(), vec![], &vec![]);
-        test("h".into(), vec![0], &vec!["r1"]);
-        test("h1".into(), vec![0, 1], &vec!["r1", "r2"]);
+        test("pu1u2dbutusbrsak518dcrc00vb21p05".into(), vec![], &vec![]);
+        test("n0i4q0k9g7b97brr8llfhrt4pbb3qa1e".into(), vec![0], &vec!["r1"]);
+        test("g19moobgrm32dn083bokhksuobulq28c".into(), vec![0, 1], &vec!["r1", "r2"]);
     }
 }
