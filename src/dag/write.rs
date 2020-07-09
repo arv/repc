@@ -67,7 +67,7 @@ mod tests {
             let kvw = kv.write().await.unwrap();
             let mut w = Write { kvw };
 
-            let c = Chunk::new(hash.into(), data.to_vec(), refs);
+            let c = Chunk::new(hash.into(), (data.to_vec(), 0), refs);
             w.put_chunk(&c).await.unwrap();
 
             let kd = Key::ChunkData(hash).to_string();
@@ -119,7 +119,7 @@ mod tests {
             {
                 let kvw = kv.write().await.unwrap();
                 let mut w = Write { kvw };
-                let c = Chunk::new("h1".into(), vec![0, 1], &vec![]);
+                let c = Chunk::new("h1".into(), (vec![0, 1], 0), &vec![]);
                 w.put_chunk(&c).await.unwrap();
 
                 // The changes should be present inside the tx.
@@ -149,7 +149,7 @@ mod tests {
     async fn roundtrip() {
         async fn test(name: &str, hash: &str, data: &[u8], refs: &[&str]) {
             let kv = MemStore::new();
-            let c = Chunk::new(hash.into(), data.to_vec(), refs);
+            let c = Chunk::new(hash.into(), (data.to_vec(), 0), refs);
             {
                 let kvw = kv.write().await.unwrap();
                 let mut w = Write { kvw };
