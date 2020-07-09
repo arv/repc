@@ -7,6 +7,7 @@ pub mod map;
 
 use crate::dag;
 
+#[derive(Debug)]
 pub enum Error {
     Storage(dag::Error),
 }

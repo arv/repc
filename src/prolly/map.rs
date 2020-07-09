@@ -15,7 +15,7 @@ pub struct Map {
 
 #[allow(dead_code)]
 impl Map {
-    pub async fn new() -> Map {
+    pub fn new() -> Map {
         Map{
             base: None,
             pending: BTreeMap::new(),
