@@ -5,6 +5,8 @@ use super::leaf_generated::leaf;
 use log::warn;
 
 // Leaf is a leaf level node in the map tree structure.
+// It wraps a chunk containing a flatbuffer and exposes handy
+// utilities to inspect the buffer more easily.
 #[derive(Debug)]
 pub struct Leaf {
     chunk: Chunk,
@@ -45,6 +47,9 @@ impl Leaf {
     }
 }
 
+// LeafIter simplifies iteration over the leaf entries. Unfortunately it needs to be
+// generic because the type returned by flatbuffer::Vector<T>::iter(). The only way
+// to encapsulate that type appears to be by making it generic.
 #[allow(dead_code)]
 struct LeafIter<'a, FBIter: Iterator<Item=leaf::LeafEntry<'a>>> {
     fb_iter: Option<FBIter>,

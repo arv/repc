@@ -56,6 +56,7 @@ impl Map {
     }
 }
 
+// Iter provides iteration over the map with pending changes applied.
 pub struct Iter<'a, LeafIter: Iterator<Item = Entry<'a>>> {
     base: Peekable<LeafIter>,
     pending: Peekable<BTreeMapIter<'a, Vec<u8>, Option<Vec<u8>>>>,
