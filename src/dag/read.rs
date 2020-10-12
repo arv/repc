@@ -91,7 +91,7 @@ mod tests {
         async fn test(data: Vec<u8>, refs: &[&str], get_same_chunk: bool) {
             let kv = MemStore::new();
             let kvw = kv.write(LogContext::new()).await.unwrap();
-            let chunk = Chunk::new((data, 0), refs);
+            let chunk = Chunk::new((data, 0), refs, 0);
             kvw.put(&Key::ChunkData(&chunk.hash()).to_string(), chunk.data())
                 .await
                 .unwrap();

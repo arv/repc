@@ -1,14 +1,12 @@
 use super::key::Key;
 use super::{chunk::Chunk, meta_generated::meta};
-use super::{read, Error, Result};
+use super::{read, Result};
 use crate::kv;
 use async_recursion::async_recursion;
 use async_std::sync::RwLock;
 use futures::future::try_join_all;
 use futures::try_join;
 use std::collections::HashSet;
-use std::convert::TryInto;
-use str_macro::str;
 
 #[derive(Debug, Default)]
 struct HeadChange {
@@ -48,10 +46,25 @@ impl<'a> Write<'_> {
             .put(&Key::ChunkData(c.hash()).to_string(), c.data())
             .await?;
 
-        if let Some(meta) = c.meta() {
-            self.kvw
-                .put(&Key::ChunkMeta(c.hash()).to_string(), meta)
-                .await?;
+        if let Some(buf) = c.meta() {
+            // Put chunk is not supposed to change the ref count.
+            // Hack for now.
+            let old_ref_count = self.get_ref_count(&c.hash().to_string()).await?;
+            if old_ref_count != 0u16 {
+                let refs = match meta::get_root_as_meta(buf).refs() {
+                    None => vec![],
+                    Some(refs) => refs.iter().collect(),
+                };
+
+                let (buf, start) = Chunk::create_meta(&refs, old_ref_count).unwrap();
+                self.kvw
+                    .put(&Key::ChunkMeta(c.hash()).to_string(), &buf[start..])
+                    .await?;
+            } else {
+                self.kvw
+                    .put(&Key::ChunkMeta(c.hash()).to_string(), buf)
+                    .await?;
+            }
         }
 
         self.mutated_chunks
@@ -154,37 +167,46 @@ impl<'a> Write<'_> {
 
     async fn set_ref_count(&self, hash: &str, count: u16) -> Result<()> {
         // Ref count is represented as a u16 stored as 2 bytes using BE.
-        let ref_count_key = Key::ChunkRefCount(hash).to_string();
-        let buf = count.to_le_bytes();
-        if count == 0u16 {
-            self.kvw.del(&ref_count_key).await?;
+        let meta_key = Key::ChunkMeta(hash).to_string();
+        let buf = self.kvw.as_read().get(&meta_key).await?;
+        if let Some(buf) = buf {
+            let m = meta::get_root_as_meta(&buf);
+            let refs = match m.refs() {
+                None => vec![],
+                Some(refs) => refs.iter().collect(),
+            };
+            match Chunk::create_meta(&refs, count) {
+                None => self.kvw.del(&meta_key).await?,
+                Some((buf, start)) => self.kvw.put(&meta_key, &buf[start..]).await?,
+            };
         } else {
-            self.kvw.put(&ref_count_key, &buf).await?;
+            match Chunk::create_meta(&vec![], count) {
+                None => (),
+                Some((buf, start)) => self.kvw.put(&meta_key, &buf[start..]).await?,
+            }
         }
+         
         Ok(())
     }
 
     async fn get_ref_count(&self, hash: &str) -> Result<u16> {
-        let buf = self.kvw.get(&Key::ChunkRefCount(hash).to_string()).await?;
+        let buf = self.kvw.get(&Key::ChunkMeta(hash).to_string()).await?;
         Ok(match buf {
             None => 0u16,
-            Some(buf) => u16::from_le_bytes(
-                buf[..]
-                    .try_into()
-                    .map_err(|_e| Error::CorruptStore(str!("invalid ref count value")))?,
-            ),
+            Some(buf) => {
+                let m = meta::get_root_as_meta(&buf);
+                m.count()
+            }
         })
     }
 
     async fn remove_all_related_keys(&self, hash: &str, update_mutated_chunks: bool) -> Result<()> {
         let data_key = Key::ChunkData(hash).to_string();
         let meta_key = Key::ChunkMeta(hash).to_string();
-        let ref_count_key = Key::ChunkRefCount(hash).to_string();
 
         try_join!(
             self.kvw.del(&data_key),
             self.kvw.del(&meta_key),
-            self.kvw.del(&ref_count_key),
         )?;
 
         // Getting the write lock could be done in parallel too but seems like
@@ -215,7 +237,7 @@ mod tests {
             let kvw = kv.write(LogContext::new()).await.unwrap();
             let mut w = Write::new(kvw);
 
-            let c = Chunk::new((data.to_vec(), 0), refs);
+            let c = Chunk::new((data.to_vec(), 0), refs, 0);
             w.put_chunk(&c).await.unwrap();
 
             let kd = Key::ChunkData(c.hash()).to_string();
@@ -242,15 +264,14 @@ mod tests {
 
     async fn assert_ref_count(kvr: &dyn Read, hash: &str, count: u16) {
         let buf = kvr
-            .get(&Key::ChunkRefCount(hash).to_string())
+            .get(&Key::ChunkMeta(hash).to_string())
             .await
             .unwrap();
-        if count == 0 {
-            assert!(buf.is_none());
-        } else {
-            let buf = buf.unwrap();
-            let m_count = u16::from_le_bytes(buf[..].try_into().unwrap());
-            assert_eq!(m_count, count);
+        if let Some(buf) = buf {
+            let m = meta::get_root_as_meta(&buf);
+            assert_eq!(count, m.count());
+        }  else {
+            assert_eq!(count, 0u16);
         }
     }
 
@@ -322,7 +343,7 @@ mod tests {
             {
                 let kvw = kv.write(LogContext::new()).await.unwrap();
                 let mut w = Write::new(kvw);
-                let c = Chunk::new((vec![0, 1], 0), &vec![]);
+                let c = Chunk::new((vec![0, 1], 0), &vec![], 0);
                 w.put_chunk(&c).await.unwrap();
 
                 key = Key::ChunkData(c.hash()).to_string();
@@ -354,7 +375,7 @@ mod tests {
     async fn roundtrip() {
         async fn test(name: &str, data: &[u8], refs: &[&str]) {
             let kv = MemStore::new();
-            let c = Chunk::new((data.to_vec(), 0), refs);
+            let c = Chunk::new((data.to_vec(), 0), refs, 0);
             {
                 let kvw = kv.write(LogContext::new()).await.unwrap();
                 let mut w = Write::new(kvw);
@@ -374,7 +395,8 @@ mod tests {
             let r = read::OwnedRead::new(kv.read(LogContext::new()).await.unwrap());
             let c2 = r.read().get_chunk(c.hash()).await.unwrap().unwrap();
             let h = r.read().get_head(name).await.unwrap().unwrap();
-            assert_eq!(c, c2);
+            let c_expected = Chunk::new((data.to_vec(), 0), refs, 1);
+            assert_eq!(c_expected, c2);
             assert_eq!(h, c.hash());
         }
 

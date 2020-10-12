@@ -13,12 +13,12 @@ pub struct Chunk {
 }
 
 impl Chunk {
-    pub fn new(data: (Vec<u8>, usize), refs: &[&str]) -> Chunk {
+    pub fn new(data: (Vec<u8>, usize), refs: &[&str], count: u16) -> Chunk {
         let s: &[u8] = &data.0;
         Chunk {
             hash: Hash::of(&s[data.1..]).to_string(),
             data,
-            meta: Chunk::create_meta(refs),
+            meta: Chunk::create_meta(refs, count),
         }
     }
 
@@ -57,15 +57,15 @@ impl Chunk {
         }
     }
 
-    fn create_meta(refs: &[&str]) -> Option<(Vec<u8>, usize)> {
-        if refs.is_empty() {
+    pub fn create_meta(refs: &[&str], count: u16) -> Option<(Vec<u8>, usize)> {
+        if refs.is_empty() && count == 0 {
             return None;
         }
         let mut builder = FlatBufferBuilder::default();
         // TODO: You're supposed to be able to use start_vector() and
         // push(), but cannot make compiler happy wih that.
         let refs = builder.create_vector_of_strings(refs);
-        let meta = meta::Meta::create(&mut builder, &meta::MetaArgs { refs: Some(refs) });
+        let meta = meta::Meta::create(&mut builder, &meta::MetaArgs { refs: Some(refs), count });
         builder.finish(meta, None);
         Some(builder.collapse())
     }
@@ -92,7 +92,7 @@ mod tests {
     #[test]
     fn round_trip() {
         fn test(hash: String, data: Vec<u8>, refs: &[&str]) {
-            let c = Chunk::new((data.clone(), 0), refs.clone());
+            let c = Chunk::new((data.clone(), 0), refs.clone(), 0);
             assert_eq!(&hash, c.hash());
             assert_eq!(data, c.data());
             if refs.is_empty() {

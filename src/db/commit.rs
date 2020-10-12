@@ -214,7 +214,7 @@ impl Commit {
             .filter_map(Ref::strong_or_none)
             .collect::<Vec<&str>>();
 
-        let chunk = dag::Chunk::new(builder.collapse(), &refs);
+        let chunk = dag::Chunk::new(builder.collapse(), &refs, 0);
         Commit { chunk }
     }
 
@@ -785,7 +785,7 @@ mod tests {
         let commit = commit_fb::Commit::create(&mut builder, args);
         builder.finish(commit, None);
 
-        Chunk::new(builder.collapse(), &refs)
+        Chunk::new(builder.collapse(), &refs, 0)
     }
 
     fn make_local_meta(

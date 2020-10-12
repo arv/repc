@@ -5,6 +5,8 @@ namespace meta;
 table Meta {
     // References from this chunk to other chunks.
     refs: [string];
+    // Ref counting
+    count: uint16 = 0;
 }
 
 root_type Meta;

@@ -335,6 +335,8 @@ async fn validate_rebase<'a>(
         )));
     }
 
+    // TODO: Make original_hash weak again and make the whole check optional.
+
     // Ensure rebase and original commit mutator names match.
     let (_, original, _) = db::read_commit(db::Whence::Hash(opts.original_hash.clone()), &dag_read)
         .await

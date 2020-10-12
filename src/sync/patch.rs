@@ -174,6 +174,7 @@ mod tests {
         ];
 
         for c in cases.iter() {
+            println!("::: {}", c.name);
             let mut chain: Chain = vec![];
             add_genesis(&mut chain, &store).await;
             let dag_write = store.write(LogContext::new()).await.unwrap();

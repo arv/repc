@@ -71,7 +71,7 @@ impl Leaf {
         builder.finish(root, None);
 
         Leaf {
-            chunk: Chunk::new(builder.collapse(), &[]),
+            chunk: Chunk::new(builder.collapse(), &[], 0),
         }
     }
 
@@ -259,6 +259,6 @@ mod tests {
         }
         let leaf = leaf::Leaf::create(&mut builder, &leaf::LeafArgs { entries });
         builder.finish(leaf, None);
-        Chunk::new(builder.collapse(), vec![].as_slice())
+        Chunk::new(builder.collapse(), vec![].as_slice(), 0)
     }
 }
